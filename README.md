@@ -26,7 +26,7 @@ Create a config.js file at the root of the project with a mysql field containing
             /* use any config supported by npm mysql */
         },
         logger: console,
-        schema: require('fs').readFileSync('./schema.js'),
+        schema: require('./schema.js'),
     }
 
 Will generate the proper "create / alter table" to update database to match modeldata.js 
