@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 var mysql = require('mysql');
-var config = require('./config.js');
+var config = require( process.cwd()+'/config.js');
 var connection = mysql.createConnection({
     host: config.mysql.host,
     user: config.mysql.user,
