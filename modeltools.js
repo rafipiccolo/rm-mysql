@@ -211,7 +211,7 @@ function update(argv) {
         getModelFromDatabase(function(err, database) {
             if (err) return exit(err);
 
-            var schema = require(config.schema);
+            var schema = JSON.parse(JSON.stringify(config.schema));
             var toexecute = [];
             var toexecutelast = [];
 
