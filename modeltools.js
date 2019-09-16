@@ -6,6 +6,7 @@ var connection = mysql.createConnection({
     host: config.mysql.host,
     user: config.mysql.user,
     password: config.mysql.password,
+    port: config.mysql.port,
     charset: config.mysql.charset || 'utf8mb4',
     multipleStatements: true,
 });
@@ -522,7 +523,7 @@ function getModelFromDatabase(callback) {
 
                             // récupère les cles uniques
                             connection.query(
-                                `SELECT t.TABLE_NAME, group_concat(k.COLUMN_NAME order by k.ORDINAL_POSITION) as columnnames, k.CONSTRAINT_NAME
+                                `SELECT t.TABLE_NAME, k.CONSTRAINT_NAME, group_concat(k.COLUMN_NAME order by k.ORDINAL_POSITION) as columnnames
                     FROM information_schema.table_constraints t
                     JOIN information_schema.key_column_usage k
                     USING(constraint_name,table_schema,table_name)
@@ -530,7 +531,7 @@ function getModelFromDatabase(callback) {
                     AND t.table_schema=` +
                                     connection.escape(config.mysql.database) +
                                     `
-                    group by t.TABLE_NAME`,
+                    group by t.TABLE_NAME, k.CONSTRAINT_NAME`,
                                 function(err, results) {
                                     if (err) return callback(err);
 
