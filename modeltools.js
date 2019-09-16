@@ -1,4 +1,4 @@
-'use strict';
+#!/usr/bin/env node
 
 var mysql = require('mysql');
 var config = require('./config.js');
