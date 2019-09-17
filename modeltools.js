@@ -101,11 +101,6 @@ require('yargs')
         exec
     ).argv;
 
-if (!config.schema) {
-    console.log('    specify a schema file in config file');
-    exit();
-}
-
 function exit(err) {
     if (err) throw err;
 
@@ -198,7 +193,7 @@ function generate(argv) {
             }
             s += '}\n';
 
-            require('fs').writeFile(config.schema, 'module.exports = ' + s, function(err) {
+            require('fs').writeFile(process.cwd()+'/schema.js', 'module.exports = ' + s, function(err) {
                 exit(err);
             });
         });
@@ -212,7 +207,7 @@ function update(argv) {
         getModelFromDatabase(function(err, database) {
             if (err) return exit(err);
 
-            var schema = JSON.parse(JSON.stringify(config.schema));
+            var schema = require(process.cwd()+'/schema.js');
             var toexecute = [];
             var toexecutelast = [];
 

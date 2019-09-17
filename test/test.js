@@ -8,7 +8,7 @@ var model = new Model({
         database: 'root',
         port: 3307
     },
-    schema: require('fs').readFileSync('schema.js'),
+    schema: require('./schema.js'),
     logger: console
 });
 

@@ -129,3 +129,28 @@ if the key already exists update instead of inserting
 # closing connections
 
     model.end();
+
+# log format
+
+This package calls the logger in that way :
+
+logger.level(key, message, obj, callback);
+
+* level : can be info, error, warn
+* key : the package name
+* message : blablabla
+* obj (optional) : additional data in an object
+* callback (optional) : called when the data is logged
+
+# test
+
+In a terminal
+
+cd test
+docker-compose up
+
+In another
+cd test
+node ../modeltools.js create
+node ../modeltools.js update
+mocha

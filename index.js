@@ -3,6 +3,7 @@
 var moment = require('moment');
 var mysql = require('mysql');
 var AppError = require('./lib/AppError.js');
+var pkg = require('./package.json');
 
 function Model(config) {
     var self = this;
@@ -29,7 +30,7 @@ Model.prototype.start = function(config) {
         self.connection = mysql.createConnection(config);
         self.connection.connect(function(err) {
             if (err) {
-                if (self.logger) self.logger.error('fk:model', 'cannot connect to mysql server', {err: err});
+                if (self.logger) self.logger.error(pkg.name, 'cannot connect to mysql server', {err: err});
                 
                 return setTimeout(function() {
                     self.start(config);
@@ -136,7 +137,7 @@ Model.prototype.queryFields = function(sql, callback) {
         });
     } else {
         self.connection.query(sql, function(err, results, fields) {
-            if (self.logger) self.logger.log('fk:model', typeof sql == 'string' ? sql : sql.sql);
+            if (self.logger) self.logger.log(pkg.name, typeof sql == 'string' ? sql : sql.sql);
 
             if (err) return callback(new AppError('Error', 'Can\'t execute sql request', {sql: sql, err: err}));
 
@@ -202,7 +203,7 @@ Model.prototype.clean = function(entity, obj) {
             if (self.schema[entity].columns[property].maxlength && obj[property])
                 obj[property] = obj[property].substr(0, self.schema[entity].columns[property].maxlength);
         } else {
-            // if (self.logger) self.logger.log('fk:model', 'champs inutilisé ' + property);
+            // if (self.logger) self.logger.log(pkg.name, 'champs inutilisé ' + property);
         }
     }
 
