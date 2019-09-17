@@ -134,7 +134,7 @@ if the key already exists update instead of inserting
 
 This package calls the logger in that way :
 
-logger.level(key, message, obj, callback);
+logger[level](key, message, obj, callback);
 
 * level : can be info, error, warn
 * key : the package name
@@ -146,11 +146,12 @@ logger.level(key, message, obj, callback);
 
 In a terminal
 
-cd test
-docker-compose up
+    cd test
+    docker-compose up
 
 In another
-cd test
-node ../modeltools.js create
-node ../modeltools.js update
-mocha
+
+    cd test
+    node ../modeltools.js create
+    node ../modeltools.js update
+    mocha
