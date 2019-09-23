@@ -137,7 +137,7 @@ Model.prototype.queryFields = function(sql, callback) {
         });
     } else {
         self.connection.query(sql, function(err, results, fields) {
-            if (self.logger) self.logger.log(pkg.name, typeof sql == 'string' ? sql : sql.sql);
+            if (self.logger) self.logger.info(pkg.name, typeof sql == 'string' ? sql : sql.sql);
 
             if (err) return callback(new AppError('Error', 'Can\'t execute sql request', {sql: sql, err: err}));
 
@@ -203,7 +203,7 @@ Model.prototype.clean = function(entity, obj) {
             if (self.schema[entity].columns[property].maxlength && obj[property])
                 obj[property] = obj[property].substr(0, self.schema[entity].columns[property].maxlength);
         } else {
-            // if (self.logger) self.logger.log(pkg.name, 'champs inutilisé ' + property);
+            // if (self.logger) self.logger.info(pkg.name, 'champs inutilisé ' + property);
         }
     }
 
