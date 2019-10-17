@@ -21,6 +21,7 @@ Create a config.js file at the root of the project with a mysql field containing
         mysql: {
             host: 'xxx',
             user: 'xxx',
+            database: 'xxx_xxx',
             password: 'xxx',
             charset: 'utf8mb4',
             /* use any config supported by npm mysql */
@@ -29,15 +30,56 @@ Create a config.js file at the root of the project with a mysql field containing
         schema: require('./schema.js'),
     }
 
-Will generate the proper "create / alter table" to update database to match modeldata.js 
+create a schema file
+
+    $> emacs schema.js
+    module.exports = {
+        user: {
+            columns: {
+                id: { nullable: false, type: 'int', autoincrement: true, primary: true },
+                enable: { nullable: false, type: 'tinyint', default: '0' },
+                name: { nullable: false, type: 'varchar', maxlength: 50, collation: 'utf8mb4_general_ci' },
+                email: { nullable: false, type: 'varchar', maxlength: 50, collation: 'utf8mb4_general_ci' },
+                password: { nullable: false, type: 'varchar', maxlength: 50, collation: 'utf8mb4_general_ci' },
+                groupId: {
+                    nullable: true,
+                    type: 'int',
+                    foreign: {
+                        name: 'user_group',
+                        table: 'group',
+                        column: 'id',
+                        delete: 'CASCADE',
+                        update: 'CASCADE',
+                    },
+                },
+                updatedAt: { nullable: false, type: 'datetime' },
+                createdAt: { nullable: false, type: 'datetime' },
+            },
+            uniques: {
+                uniqueEmail: ['email'],
+            },
+            comment: "user table contains all data of the user",
+        },
+        group: {
+            columns: {
+                id: { nullable: false, type: 'int', autoincrement: true, primary: true },
+                name: { nullable: false, type: 'varchar', maxlength: 50, collation: 'utf8mb4_general_ci' },
+                updatedAt: { nullable: false, type: 'datetime' },
+                createdAt: { nullable: false, type: 'datetime' },
+            },
+            comment: "group table",
+        },
+    }
+
+Will generate the proper "create / alter table" to update database to match schema.js 
 
     $> modeltools update
 
-Will do the opposite. Generate a modeldata from the database schema 
+Will do the opposite. Generate a schema from the database schema 
 
     $> modeltools update
 
-execute custom sql on database
+Execute custom sql on database
 
     $> modeltools exec "select 1"
 
