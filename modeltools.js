@@ -1,12 +1,14 @@
-#!/usr/bin/env node
+'use strict';
 
+var async = require('async');
 var mysql = require('mysql');
-var config = require( process.cwd()+'/config.js');
+var crypto = require('crypto');
+
+var config = require('./config.js');
 var connection = mysql.createConnection({
     host: config.mysql.host,
     user: config.mysql.user,
     password: config.mysql.password,
-    port: config.mysql.port,
     charset: config.mysql.charset || 'utf8mb4',
     multipleStatements: true,
 });
@@ -22,7 +24,7 @@ require('yargs')
     .usage('Usage: $0 <command> [arguments]')
     .help('h')
     .alias('h', 'help')
-    .version(require('./package.json').version)
+    .version('1.0')
     .strict()
     .wrap(null)
     .demandCommand(1, 'Please choose a command')
@@ -38,19 +40,25 @@ require('yargs')
 
     .command(
         'update',
-        'show sql commands needed to sync database according to schema.js',
+        'show sql commands needed to sync database according to modeldata.js',
         (yargs) => {
-            yargs.example('$0 update').option('f', {
-                alias: 'force',
-                describe: 'autoexecute : do not ask for execution',
-            });
+            yargs
+                .example('$0 update')
+                .option('f', {
+                    alias: 'force',
+                    describe: 'autoexecute : do not ask for execution',
+                })
+                .option('d', {
+                    alias: 'dump',
+                    describe: 'do not execute : only print sql',
+                });
         },
         update
     )
 
     .command(
         'generate',
-        'generate schema.js from database',
+        'generate modeldata.js from database',
         (yargs) => {
             yargs.example('$0 generate');
         },
@@ -79,15 +87,23 @@ require('yargs')
         'load [file]',
         'load database from base.sql or specified file',
         (yargs) => {
-            yargs
-                .example('$0 load')
-                .example('$0 load base.sql')
-                .positional('file', {
-                    describe: 'specify the file to load (default base.sql)',
-                    default: 'base.sql',
-                });
+            yargs.example('$0 load').example('$0 load base.sql').positional('file', {
+                describe: 'specify the file to load (default base.sql)',
+                default: 'base.sql',
+            });
         },
         load
+    )
+
+    .command(
+        'password <password>',
+        'generate password',
+        (yargs) => {
+            yargs.example('$0 password blablabal').positional('password', {
+                describe: 'specify the password to encrypt',
+            });
+        },
+        password
     )
 
     .command(
@@ -101,6 +117,11 @@ require('yargs')
         exec
     ).argv;
 
+if (!config.modeldata) {
+    console.log('    specify a modeldata file in config file');
+    exit();
+}
+
 function exit(err) {
     if (err) throw err;
 
@@ -109,10 +130,10 @@ function exit(err) {
 }
 
 function exec(argv) {
-    connection.changeUser({ database: config.mysql.database }, function(err) {
+    connection.changeUser({ database: config.mysql.database }, function (err) {
         if (err) throw err;
 
-        connection.query(argv.sql, function(err, results) {
+        connection.query(argv.sql, function (err, results) {
             if (err) throw err;
 
             console.log(results);
@@ -121,12 +142,22 @@ function exec(argv) {
     });
 }
 
+function password(argv) {
+    console.log(
+        crypto
+            .createHmac('sha256', config.secret)
+            .update('' + argv.password)
+            .digest('hex')
+    );
+    exit();
+}
+
 function load(argv) {
-    connection.changeUser({ database: config.mysql.database }, function(err) {
+    connection.changeUser({ database: config.mysql.database }, function (err) {
         if (err) throw err;
 
         var sql = fs.readFileSync(argv.file).toString('utf8');
-        connection.query(sql, function(err) {
+        connection.query(sql, function (err) {
             exit(err);
         });
     });
@@ -138,7 +169,7 @@ function dump(argv) {
     var output = fs.createWriteStream(__dirname + '/base.sql');
     mysqldump.stdout.pipe(output);
 
-    mysqldump.stderr.on('data', function(data) {
+    mysqldump.stderr.on('data', function (data) {
         console.log(data.toString());
     });
 
@@ -149,51 +180,49 @@ function dump(argv) {
 }
 
 function drop(argv) {
-    connection.query('DROP DATABASE IF EXISTS `' + config.mysql.database + '`;', function(err) {
+    connection.query('DROP DATABASE IF EXISTS `' + config.mysql.database + '`;', function (err) {
         exit(err);
     });
 }
 
 function create(argv) {
-    connection.query('CREATE DATABASE IF NOT EXISTS `' + config.mysql.database + '`;', function(err) {
+    connection.query('CREATE DATABASE IF NOT EXISTS `' + config.mysql.database + '`;', function (err) {
         exit(err);
     });
 }
 
 function generate(argv) {
-    connection.changeUser({ database: config.mysql.database }, function(err) {
+    connection.changeUser({ database: config.mysql.database }, function (err) {
         if (err) throw err;
 
-        getModelFromDatabase(function(err, schema) {
+        getModelFromDatabase(function (err, modeldata) {
             var s = '';
-            //s = require('util').inspect(schema, {depth: 4});
+            //s = require('util').inspect(modeldata, {depth: 4});
             s += '{\n';
-            for (var i in schema) {
+            for (var i in modeldata) {
                 s += '  ' + i + ': ';
                 s += '{\n';
-                for (var j in schema[i]) {
+                for (var j in modeldata[i]) {
                     s += '    ' + j + ': ';
 
                     if (j == 'columns' || j == 'uniques') {
                         s += '{\n';
-                        for (var k in schema[i][j]) {
-                            var columnlines = require('util')
-                                .inspect(schema[i][j][k])
-                                .split('\n');
+                        for (var k in modeldata[i][j]) {
+                            var columnlines = require('util').inspect(modeldata[i][j][k]).split('\n');
                             var column = '';
-                            columnlines.forEach(function(columnline) {
+                            columnlines.forEach(function (columnline) {
                                 column += ' ' + columnline.trim();
                             });
                             s += '      ' + k + ':' + column + ',\n';
                         }
                         s += '    },\n';
-                    } else s += JSON.stringify(schema[i][j]) + ',\n';
+                    } else s += JSON.stringify(modeldata[i][j]) + ',\n';
                 }
                 s += '  },\n';
             }
             s += '}\n';
 
-            require('fs').writeFile(process.cwd()+'/schema.js', 'module.exports = ' + s, function(err) {
+            require('fs').writeFile(config.modeldata, 'module.exports = ' + s, function (err) {
                 exit(err);
             });
         });
@@ -201,80 +230,80 @@ function generate(argv) {
 }
 
 function update(argv) {
-    connection.changeUser({ database: config.mysql.database }, function(err) {
+    connection.changeUser({ database: config.mysql.database }, function (err) {
         if (err) throw err;
 
-        getModelFromDatabase(function(err, database) {
+        getModelFromDatabase(function (err, database) {
             if (err) return exit(err);
 
-            var schema = require(process.cwd()+'/schema.js');
+            var modeldata = require(config.modeldata);
             var toexecute = [];
             var toexecutelast = [];
 
             // cree un tableau de cle unique vide si il n'y en a pas
-            for (var table in schema) {
-                schema[table].uniques = schema[table].uniques || {};
+            for (var table in modeldata) {
+                modeldata[table].uniques = modeldata[table].uniques || {};
                 if (database[table]) database[table].uniques = database[table].uniques || {};
             }
 
             // set utf8 par defaut
-            for (var table in schema) {
-                for (var column in schema[table].columns) {
+            for (var table in modeldata) {
+                for (var column in modeldata[table].columns) {
                     if (
-                        (schema[table].columns[column].type == 'varchar' || schema[table].columns[column].type == 'text') &&
-                        !schema[table].columns[column].collation
+                        (modeldata[table].columns[column].type == 'varchar' || modeldata[table].columns[column].type == 'text') &&
+                        !modeldata[table].columns[column].collation
                     )
-                        schema[table].columns[column].collation = 'utf8mb4_general_ci';
+                        modeldata[table].columns[column].collation = 'utf8mb4_general_ci';
                 }
             }
 
-            // table existe dans la base mais pas dans le schema
+            // table existe dans la base mais pas dans le modeldata
             for (var table in database) {
-                if (!schema[table]) toexecute.push('DROP table IF EXISTS `' + table + '`;');
+                if (!modeldata[table]) toexecute.push('DROP table IF EXISTS `' + table + '`;');
             }
 
-            // table existe dans le schema mais pas dans la base
-            for (var table in schema) {
+            // table existe dans le modeldata mais pas dans la base
+            for (var table in modeldata) {
                 if (!database[table]) {
                     // COLUMNS
                     var lines = [];
-                    for (var column in schema[table].columns) lines.push(column2sql(column, schema[table].columns[column]));
+                    for (var column in modeldata[table].columns) lines.push(column2sql(column, modeldata[table].columns[column]));
 
                     // PK
-                    var pk = pk2sql(schema[table].columns);
+                    var pk = pk2sql(modeldata[table].columns);
                     if (pk) lines.push(pk);
 
                     toexecute.push('CREATE TABLE `' + table + '` (' + lines.join(',\n') + ');\n');
 
                     // FK
-                    for (var column in schema[table].columns)
-                        if (schema[table].columns[column].foreign)
-                            toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, schema[table].columns[column]) + ';');
+                    for (var column in modeldata[table].columns)
+                        if (modeldata[table].columns[column].foreign)
+                            toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, modeldata[table].columns[column]) + ';');
 
                     // UNIQUE
-                    for (var name in schema[table].uniques)
-                        toexecute.push('ALTER TABLE `' + table + '` ADD ' + uniques2sql(name, schema[table].uniques[name]) + ';\n');
+                    for (var name in modeldata[table].uniques)
+                        toexecute.push('ALTER TABLE `' + table + '` ADD ' + uniques2sql(name, modeldata[table].uniques[name]) + ';\n');
                 }
             }
 
             // la table existe dans la base et dans le model
-            for (var table in schema) {
-                if (schema[table]) {
-                    if (!database[table] || (schema[table].comment || '') != (database[table].comment || ''))
-                        toexecutelast.push('ALTER TABLE `' + table + '` COMMENT=' + connection.escape(schema[table].comment) + ';');
+            for (var table in modeldata) {
+                if (modeldata[table]) {
+                    if (!database[table] || (modeldata[table].comment || '') != (database[table].comment || ''))
+                        toexecutelast.push('ALTER TABLE `' + table + '` COMMENT=' + connection.escape(modeldata[table].comment) + ';');
                 }
             }
 
-            // la colonne existe dans la base mais pas dans le schema
+            // la colonne existe dans la base mais pas dans le modeldata
             for (var table in database) {
-                if (schema[table]) {
+                if (modeldata[table]) {
                     // UNIQUE
                     for (var name in database[table].uniques)
-                        if (!schema[table].uniques[name])
+                        if (!modeldata[table].uniques[name])
                             if (database[table].uniques[name]) toexecute.push('ALTER TABLE `' + table + '` DROP INDEX `' + name + '`;\n');
 
                     for (var column in database[table].columns) {
-                        if (!schema[table].columns[column]) {
+                        if (!modeldata[table].columns[column]) {
                             // FK
                             if (database[table].columns[column].foreign)
                                 toexecute.push(
@@ -288,35 +317,35 @@ function update(argv) {
                 }
             }
 
-            // la colonne existe dans le schema mais pas dans la base
-            for (var table in schema) {
+            // la colonne existe dans le modeldata mais pas dans la base
+            for (var table in modeldata) {
                 if (database[table]) {
-                    for (var column in schema[table].columns) {
+                    for (var column in modeldata[table].columns) {
                         if (!database[table].columns[column]) {
                             // COLUMN
-                            toexecute.push('ALTER TABLE `' + table + '` ADD COLUMN ' + column2sql(column, schema[table].columns[column]) + ';');
+                            toexecute.push('ALTER TABLE `' + table + '` ADD COLUMN ' + column2sql(column, modeldata[table].columns[column]) + ';');
 
                             // FK
-                            if (schema[table].columns[column].foreign)
-                                toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, schema[table].columns[column]) + ';');
+                            if (modeldata[table].columns[column].foreign)
+                                toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, modeldata[table].columns[column]) + ';');
                         }
                     }
-                    for (var name in schema[table].uniques)
+                    for (var name in modeldata[table].uniques)
                         if (!database[table].uniques[name])
-                            if (schema[table].uniques[name])
-                                toexecute.push('ALTER TABLE `' + table + '` ADD ' + uniques2sql(name, schema[table].uniques[name]) + ';\n');
+                            if (modeldata[table].uniques[name])
+                                toexecute.push('ALTER TABLE `' + table + '` ADD ' + uniques2sql(name, modeldata[table].uniques[name]) + ';\n');
                 }
             }
 
-            // la colonne existe dans le schema et aussi dans la base
-            for (var table in schema) {
+            // la colonne existe dans le modeldata et aussi dans la base
+            for (var table in modeldata) {
                 if (database[table]) {
                     var regenerateprimary = false;
                     var dropprimary = false;
 
-                    for (var column in schema[table].columns) {
+                    for (var column in modeldata[table].columns) {
                         if (database[table].columns[column]) {
-                            if (diffObject(database[table].columns[column], schema[table].columns[column])) {
+                            if (diffObject(database[table].columns[column], modeldata[table].columns[column])) {
                                 // supprime la cle si elle existe
                                 if (database[table].columns[column].foreign)
                                     toexecute.push(
@@ -325,23 +354,23 @@ function update(argv) {
 
                                 // si la structure de donnée est différente
                                 if (
-                                    database[table].columns[column].nullable != schema[table].columns[column].nullable ||
-                                    database[table].columns[column].type != schema[table].columns[column].type ||
-                                    (database[table].columns[column].maxlength || '') != (schema[table].columns[column].maxlength || '') ||
-                                    (database[table].columns[column].comment || '') != (schema[table].columns[column].comment || '') ||
-                                    (database[table].columns[column].default || '') != (schema[table].columns[column].default || '') ||
-                                    (database[table].columns[column].autoincrement || '') != (schema[table].columns[column].autoincrement || '') ||
-                                    (database[table].columns[column].collation || '') != (schema[table].columns[column].collation || '')
+                                    database[table].columns[column].nullable != modeldata[table].columns[column].nullable ||
+                                    database[table].columns[column].type != modeldata[table].columns[column].type ||
+                                    (database[table].columns[column].maxlength || '') != (modeldata[table].columns[column].maxlength || '') ||
+                                    (database[table].columns[column].comment || '') != (modeldata[table].columns[column].comment || '') ||
+                                    (database[table].columns[column].default || '') != (modeldata[table].columns[column].default || '') ||
+                                    (database[table].columns[column].autoincrement || '') != (modeldata[table].columns[column].autoincrement || '') ||
+                                    (database[table].columns[column].collation || '') != (modeldata[table].columns[column].collation || '')
                                 )
                                     toexecute.push(
-                                        'ALTER TABLE `' + table + '` MODIFY COLUMN ' + column2sql(column, schema[table].columns[column]) + ';'
+                                        'ALTER TABLE `' + table + '` MODIFY COLUMN ' + column2sql(column, modeldata[table].columns[column]) + ';'
                                     );
 
                                 // recree la cle si elle existe
-                                if (schema[table].columns[column].foreign)
-                                    toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, schema[table].columns[column]) + ';');
+                                if (modeldata[table].columns[column].foreign)
+                                    toexecutelast.push('ALTER TABLE `' + table + '` ADD ' + fk2sql(column, modeldata[table].columns[column]) + ';');
 
-                                if (schema[table].columns[column].primary) regenerateprimary = true;
+                                if (modeldata[table].columns[column].primary) regenerateprimary = true;
                                 if (database[table].columns[column].primary) dropprimary = true;
                             }
                         }
@@ -349,16 +378,16 @@ function update(argv) {
 
                     // PK
                     if (regenerateprimary) {
-                        var pk = pk2sql(schema[table].columns);
+                        var pk = pk2sql(modeldata[table].columns);
                         if (pk) toexecutelast.push('ALTER TABLE `' + table + '` ' + (dropprimary ? 'DROP PRIMARY KEY, ' : '') + ' ADD ' + pk + ';');
                     }
 
                     // UNIQUE
-                    for (var name in schema[table].uniques) {
+                    for (var name in modeldata[table].uniques) {
                         if (
                             database[table].uniques[name] &&
-                            schema[table].uniques[name] &&
-                            JSON.stringify(database[table].uniques[name]) != JSON.stringify(schema[table].uniques[name])
+                            modeldata[table].uniques[name] &&
+                            JSON.stringify(database[table].uniques[name]) != JSON.stringify(modeldata[table].uniques[name])
                         ) {
                             toexecute.push(
                                 'ALTER TABLE `' +
@@ -366,7 +395,7 @@ function update(argv) {
                                     '` DROP INDEX `' +
                                     name +
                                     '`, ADD ' +
-                                    uniques2sql(name, schema[table].uniques[name]) +
+                                    uniques2sql(name, modeldata[table].uniques[name]) +
                                     ';\n'
                             );
                         }
@@ -376,6 +405,11 @@ function update(argv) {
 
             if (!toexecute.length && !toexecutelast.length) return exit(err);
 
+            if (argv.dump) {
+                console.log((toexecute.join('\n') + '\n' + toexecutelast.join('\n') + '\n').trim());
+                exit(err);
+            }
+
             var all = '';
             all += '/*!40101 SET NAMES utf8mb4 */;\n';
             all += '/*!40014 SET FOREIGN_KEY_CHECKS=0 */;\n';
@@ -384,17 +418,17 @@ function update(argv) {
             all += toexecute.join('\n') + '\n';
             all += '\n';
             all += toexecutelast.join('\n') + '\n';
-            console.log(all);
+            console.log(all.trim());
 
             if (argv.force) {
-                return connection.query(all, function(err) {
+                return connection.query(all, function (err) {
                     exit(err);
                 });
             }
 
-            rl.question('Execute ? ', function(answer) {
+            rl.question('Execute ? ', function (answer) {
                 if (/^y|o/.test(answer)) {
-                    connection.query(all, function(err) {
+                    connection.query(all, function (err) {
                         exit(err);
                     });
                 } else {
@@ -463,14 +497,14 @@ function fk2sql(name, obj) {
 }
 
 function getModelFromDatabase(callback) {
-    var schema = {};
+    var modeldata = {};
     connection.query(
         'SELECT `TABLE_NAME`, `TABLE_COMMENT` FROM `INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA`=' + connection.escape(config.mysql.database),
-        function(err, results) {
+        function (err, results) {
             if (err) return callback(err);
 
-            results.forEach(function(result) {
-                schema[result.TABLE_NAME] = {
+            results.forEach(function (result) {
+                modeldata[result.TABLE_NAME] = {
                     columns: {},
                     uniques: {},
                     comment: result.TABLE_COMMENT,
@@ -481,24 +515,24 @@ function getModelFromDatabase(callback) {
             connection.query(
                 'SELECT `TABLE_NAME`, `COLUMN_NAME`, `COLLATION_NAME`, `COLUMN_DEFAULT`, `IS_NULLABLE`, `DATA_TYPE`, `CHARACTER_MAXIMUM_LENGTH`, `EXTRA`, `COLUMN_COMMENT` FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE `TABLE_SCHEMA`=' +
                     connection.escape(config.mysql.database),
-                function(err, results) {
+                function (err, results) {
                     if (err) return callback(err);
 
-                    results.forEach(function(result) {
-                        schema[result.TABLE_NAME].columns[result.COLUMN_NAME] = {};
+                    results.forEach(function (result) {
+                        modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME] = {};
 
-                        schema[result.TABLE_NAME].columns[result.COLUMN_NAME].nullable = result.IS_NULLABLE == 'YES';
-                        schema[result.TABLE_NAME].columns[result.COLUMN_NAME].type = result.DATA_TYPE;
-                        if (result.COLUMN_DEFAULT) schema[result.TABLE_NAME].columns[result.COLUMN_NAME].default = result.COLUMN_DEFAULT;
+                        modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].nullable = result.IS_NULLABLE == 'YES';
+                        modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].type = result.DATA_TYPE;
+                        if (result.COLUMN_DEFAULT) modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].default = result.COLUMN_DEFAULT;
 
-                        if (result.EXTRA == 'auto_increment') schema[result.TABLE_NAME].columns[result.COLUMN_NAME].autoincrement = true;
+                        if (result.EXTRA == 'auto_increment') modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].autoincrement = true;
 
                         if (result.CHARACTER_MAXIMUM_LENGTH)
-                            schema[result.TABLE_NAME].columns[result.COLUMN_NAME].maxlength = result.CHARACTER_MAXIMUM_LENGTH;
+                            modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].maxlength = result.CHARACTER_MAXIMUM_LENGTH;
 
-                        if (result.COLUMN_COMMENT) schema[result.TABLE_NAME].columns[result.COLUMN_NAME].comment = result.COLUMN_COMMENT;
+                        if (result.COLUMN_COMMENT) modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].comment = result.COLUMN_COMMENT;
 
-                        if (result.COLLATION_NAME) schema[result.TABLE_NAME].columns[result.COLUMN_NAME].collation = result.COLLATION_NAME;
+                        if (result.COLLATION_NAME) modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].collation = result.COLLATION_NAME;
                     });
 
                     // récupère les cles primaires
@@ -509,16 +543,16 @@ function getModelFromDatabase(callback) {
                 USING(constraint_name,table_schema,table_name)
                 WHERE t.constraint_type='PRIMARY KEY'
                 AND t.table_schema=` + connection.escape(config.mysql.database),
-                        function(err, results) {
+                        function (err, results) {
                             if (err) return callback(err);
 
-                            results.forEach(function(result) {
-                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].primary = true;
+                            results.forEach(function (result) {
+                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].primary = true;
                             });
 
                             // récupère les cles uniques
                             connection.query(
-                                `SELECT t.TABLE_NAME, k.CONSTRAINT_NAME, group_concat(k.COLUMN_NAME order by k.ORDINAL_POSITION) as columnnames
+                                `SELECT t.TABLE_NAME, group_concat(k.COLUMN_NAME order by k.ORDINAL_POSITION) as columnnames, k.CONSTRAINT_NAME
                     FROM information_schema.table_constraints t
                     JOIN information_schema.key_column_usage k
                     USING(constraint_name,table_schema,table_name)
@@ -526,12 +560,12 @@ function getModelFromDatabase(callback) {
                     AND t.table_schema=` +
                                     connection.escape(config.mysql.database) +
                                     `
-                    group by t.TABLE_NAME, k.CONSTRAINT_NAME`,
-                                function(err, results) {
+                    group by t.TABLE_NAME`,
+                                function (err, results) {
                                     if (err) return callback(err);
 
-                                    results.forEach(function(result) {
-                                        schema[result.TABLE_NAME].uniques[result.CONSTRAINT_NAME] = result.columnnames.split(',');
+                                    results.forEach(function (result) {
+                                        modeldata[result.TABLE_NAME].uniques[result.CONSTRAINT_NAME] = result.columnnames.split(',');
                                     });
 
                                     // récupère les cles étrangères
@@ -540,30 +574,30 @@ function getModelFromDatabase(callback) {
                         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS k
                         INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS AS cn ON cn.CONSTRAINT_NAME = k.CONSTRAINT_NAME
                         WHERE REFERENCED_TABLE_SCHEMA = ` + connection.escape(config.mysql.database),
-                                        function(err, results) {
+                                        function (err, results) {
                                             if (err) return callback(err);
 
-                                            results.forEach(function(result) {
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign = {};
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.name = result.CONSTRAINT_NAME;
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.table = result.REFERENCED_TABLE_NAME;
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.column =
+                                            results.forEach(function (result) {
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign = {};
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.name = result.CONSTRAINT_NAME;
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.table = result.REFERENCED_TABLE_NAME;
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.column =
                                                     result.REFERENCED_COLUMN_NAME;
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.delete = result.DELETE_RULE;
-                                                schema[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.update = result.UPDATE_RULE;
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.delete = result.DELETE_RULE;
+                                                modeldata[result.TABLE_NAME].columns[result.COLUMN_NAME].foreign.update = result.UPDATE_RULE;
                                             });
 
                                             // fait comme si la bdd est en text 65K au lieu de medium text 16M
-                                            for (var table in schema) {
-                                                for (var column in schema[table].columns) {
-                                                    if (schema[table].columns[column].type == 'mediumtext') {
-                                                        schema[table].columns[column].type = 'text';
-                                                        schema[table].columns[column].maxlength = 65535;
+                                            for (var table in modeldata) {
+                                                for (var column in modeldata[table].columns) {
+                                                    if (modeldata[table].columns[column].type == 'mediumtext') {
+                                                        modeldata[table].columns[column].type = 'text';
+                                                        modeldata[table].columns[column].maxlength = 65535;
                                                     }
                                                 }
                                             }
 
-                                            callback(null, schema);
+                                            callback(null, modeldata);
                                         }
                                     );
                                 }
@@ -582,7 +616,7 @@ function objToString(obj) {
         sortable.push([x, obj[x]]);
     }
 
-    sortable.sort(function(a, b) {
+    sortable.sort(function (a, b) {
         return a == b ? 0 : a > b ? 1 : -1;
     });
 
