@@ -23,7 +23,7 @@
     "async": "^3.2.0",
     "moment": "^2.29.1",
     "mysql": "^2.18.1",
-    "yargs": "^16.1.1"
+    "yargs": "^16.2.0"
   },
   "devDependencies": {
     "mocha": "^8.2.1"
