@@ -1,31 +1,31 @@
 {
-  "name": "rm-mysql",
-  "version": "1.0.10",
-  "description": "",
-  "main": "index.js",
-  "bin": {
-    "modeltools": "modeltools.js"
-  },
-  "scripts": {
-    "test": "mocha"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rafipiccolo/rm-mysql.git"
-  },
-  "author": "Raphael Piccolo",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/rafipiccolo/rm-mysql/issues"
-  },
-  "homepage": "https://github.com/rafipiccolo/rm-mysql#readme",
-  "dependencies": {
-    "async": "^3.2.0",
-    "moment": "^2.29.1",
-    "mysql": "^2.18.1",
-    "yargs": "^16.2.0"
-  },
-  "devDependencies": {
-    "mocha": "^8.2.1"
-  }
+    "name": "rm-mysql",
+    "version": "1.0.10",
+    "description": "",
+    "main": "index.js",
+    "bin": {
+        "modeltools": "modeltools.js"
+    },
+    "scripts": {
+        "test": "mocha"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/rafipiccolo/rm-mysql.git"
+    },
+    "author": "Raphael Piccolo",
+    "license": "ICS",
+    "bugs": {
+        "url": "https://github.com/rafipiccolo/rm-mysql/issues"
+    },
+    "homepage": "https://github.com/rafipiccolo/rm-mysql#readme",
+    "dependencies": {
+        "async": "^3.2.0",
+        "moment": "^2.29.1",
+        "mysql": "^2.18.1",
+        "yargs": "^16.2.0"
+    },
+    "devDependencies": {
+        "mocha": "^8.2.1"
+    }
 }
