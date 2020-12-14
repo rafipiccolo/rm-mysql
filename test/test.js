@@ -6,55 +6,43 @@ var model = new Model({
         user: 'root',
         password: 'root',
         database: 'root',
-        port: 3307
+        port: 3307,
     },
     schema: require('./schema.js'),
-    logger: console
+    logger: console,
 });
 
-describe('model.js', function() {
-    afterEach(function() {
+describe('model.js', function () {
+    afterEach(function () {
         if (this.currentTest.state === 'failed') {
             model.end();
         }
     });
 
-    it('queryNb select 2', function(done) {
-        model.queryNb('select 2', function(err, nb) {
+    it('queryNb select 2', function (done) {
+        model.queryNb('select 2', function (err, nb) {
             assert.ifError(err);
             assert.equal(nb, 2);
             done();
         });
     });
-    it('queryOne select 2', function(done) {
-        model.queryOne('select 2', function(err, line) {
+    it('queryOne select 2', function (done) {
+        model.queryOne('select 2', function (err, line) {
             assert.ifError(err);
             assert.equal(Object.keys(line).length, 1);
             done();
         });
     });
-    it('query select 2', function(done) {
-        model.query('select 2', function(err, results) {
+    it('query select 2', function (done) {
+        model.query('select 2', function (err, results) {
             assert.ifError(err);
             assert.equal(results.length, 1);
             assert.equal(Object.keys(results[0]).length, 1);
             done();
         });
     });
-    it('queryFields select 2', function(done) {
-        model.queryFields('select 2', function(err, results) {
-            assert.ifError(err);
-            assert.equal(results.length, 1);
-            assert.equal(Object.keys(results[0]).length, 1);
-            assert.equal(Object.keys(results[0]).length, 1);
-            done();
-        });
-    });
-    it('query with order where and limit', function(done) {
-        model.query('select ' + model.escape(2) + ' ' + model.orderBy({}) + ' ' + model.where([]) + ' ' + model.paginate(0, 1), function(
-            err,
-            results
-        ) {
+    it('queryFields select 2', function (done) {
+        model.queryFields('select 2', function (err, results) {
             assert.ifError(err);
             assert.equal(results.length, 1);
             assert.equal(Object.keys(results[0]).length, 1);
@@ -62,21 +50,25 @@ describe('model.js', function() {
             done();
         });
     });
-    it('insertMulti', function(done) {
-        model.insertMulti(
-            'user',
-            [
-                { name: 'toto' },
-                { name: 'solo' },
-                { name: 'lolo' },
-            ],
-            function(err, results) {
+    it('query with order where and limit', function (done) {
+        model.query(
+            'select ' + model.escape(2) + ' ' + model.orderBy({}) + ' ' + model.where([]) + ' ' + model.paginate(0, 1),
+            function (err, results) {
                 assert.ifError(err);
+                assert.equal(results.length, 1);
+                assert.equal(Object.keys(results[0]).length, 1);
+                assert.equal(Object.keys(results[0]).length, 1);
                 done();
             }
         );
     });
-    it('close connection', function(done) {
+    it('insertMulti', function (done) {
+        model.insertMulti('user', [{ name: 'toto' }, { name: 'solo' }, { name: 'lolo' }], function (err, results) {
+            assert.ifError(err);
+            done();
+        });
+    });
+    it('close connection', function (done) {
         model.end();
         done();
     });

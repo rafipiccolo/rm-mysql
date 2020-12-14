@@ -4,7 +4,7 @@ Extends mysql npm's package and provide a cli for database schema diff and updat
 
 # Install
 
-	$> npm -g install rm-mysql
+    $> npm -g install rm-mysql
 
 # Usage
 
@@ -71,11 +71,11 @@ create a schema file
         },
     }
 
-Will generate the proper "create / alter table" to update database to match schema.js 
+Will generate the proper "create / alter table" to update database to match schema.js
 
     $> modeltools update
 
-Will do the opposite. Generate a schema from the database schema 
+Will do the opposite. Generate a schema from the database schema
 
     $> modeltools update
 
@@ -178,11 +178,11 @@ This package calls the logger in that way :
 
 logger[level](key, message, obj, callback);
 
-* level : can be info, error, warn
-* key : the package name
-* message : blablabla
-* obj (optional) : additional data in an object
-* callback (optional) : called when the data is logged
+-   level : can be info, error, warn
+-   key : the package name
+-   message : blablabla
+-   obj (optional) : additional data in an object
+-   callback (optional) : called when the data is logged
 
 # test
 

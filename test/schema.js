@@ -5,5 +5,5 @@ module.exports = {
             name: { nullable: true, type: 'varchar', maxlength: 255 },
         },
         comment: '',
-    }
+    },
 };

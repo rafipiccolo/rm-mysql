@@ -26,6 +26,7 @@
         "yargs": "^16.2.0"
     },
     "devDependencies": {
-        "mocha": "^8.2.1"
+        "mocha": "^8.2.1",
+        "prettier": "^2.2.1"
     }
 }

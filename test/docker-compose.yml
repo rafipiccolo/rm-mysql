@@ -1,10 +1,10 @@
 version: '2'
 services:
-  db:
-    image: mysql:5.7
-    restart: always
-    environment:
-      MYSQL_DATABASE: 'root'
-      MYSQL_ROOT_PASSWORD: 'root'
-    ports:
-      - 3307:3306
+    db:
+        image: mysql:5.7
+        restart: always
+        environment:
+            MYSQL_DATABASE: 'root'
+            MYSQL_ROOT_PASSWORD: 'root'
+        ports:
+            - 3307:3306
