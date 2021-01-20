@@ -30,7 +30,7 @@ Model.prototype.start = function (config) {
         self.connection = mysql.createConnection(config);
         self.connection.connect(function (err) {
             if (err) {
-                if (self.logger) self.logger.error(pkg.name, 'cannot connect to mysql server', { err: err });
+                if (self.logger) self.logger.error(pkg.name, 'cannot connect to mysql server', { err });
 
                 return setTimeout(function () {
                     self.start(config);
@@ -99,7 +99,7 @@ Model.prototype.queryOne = function (sql, callback) {
     var self = this;
     self.query(sql, function (err, results, fields) {
         if (err) return callback(err);
-        if (results.length == 0) return callback(new AppError('NORESULT', 'Aucun résultat', { sql: sql }));
+        if (results.length == 0) return callback(new AppError('NORESULT', 'Aucun résultat', { sql }));
 
         var res = results[0];
 
@@ -130,7 +130,7 @@ Model.prototype.queryFields = function (sql, callback) {
             connection.query(sql, function (err, rows, fields) {
                 connection.release();
 
-                if (err) return callback(new AppError('Error', "Can't execute sql request from pool", { sql: sql, err: err }));
+                if (err) return callback(new AppError('Error', "Can't execute sql request from pool", { sql, err }));
 
                 callback(null, rows, fields);
             });
@@ -139,7 +139,7 @@ Model.prototype.queryFields = function (sql, callback) {
         self.connection.query(sql, function (err, results, fields) {
             if (self.logger) self.logger.info(pkg.name, typeof sql == 'string' ? sql : sql.sql);
 
-            if (err) return callback(new AppError('Error', "Can't execute sql request", { sql: sql, err: err }));
+            if (err) return callback(new AppError('Error', "Can't execute sql request", { sql, err }));
 
             callback(null, results, fields);
         });
@@ -148,7 +148,7 @@ Model.prototype.queryFields = function (sql, callback) {
 
 Model.prototype.queryNest = function (sql, callback) {
     var self = this;
-    self.query({ sql: sql, nestTables: true }, callback);
+    self.query({ sql, nestTables: true }, callback);
 };
 
 Model.prototype.escape = function (x) {
@@ -192,9 +192,9 @@ Model.prototype.clean = function (entity, obj) {
             else {
                 var type = self.schema[entity].columns[property].type;
                 var err = new AppError('Error', 'unknown type ' + type + ' for cleaning', {
-                    entity: entity,
-                    property: property,
-                    type: type,
+                    entity,
+                    property,
+                    type,
                 });
                 throw err;
             }
