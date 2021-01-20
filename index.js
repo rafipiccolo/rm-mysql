@@ -38,7 +38,7 @@ Model.prototype.start = function (config) {
             }
 
             if (config.charset)
-                self.connection.query(`SET NAMES ${  self.escape(config.charset)}`, function (err) {
+                self.connection.query(`SET NAMES ${self.escape(config.charset)}`, function (err) {
                     if (err) throw err;
                 });
         });
@@ -52,7 +52,7 @@ Model.prototype.object2sql = function (obj) {
     var self = this;
     var x = [];
 
-    for (var i in obj) x.push(`\`${  i  }\` = ${  self.escape(obj[i])}`);
+    for (var i in obj) x.push(`\`${i}\` = ${self.escape(obj[i])}`);
     return x.join(', ');
 };
 
@@ -60,9 +60,9 @@ Model.prototype.orderBy = function (obj) {
     var self = this;
     var x = [];
 
-    for (var i in obj) if (obj[i].toUpperCase() == 'ASC' || obj[i].toUpperCase() == 'DESC') x.push(`${i  } ${  obj[i]}`);
+    for (var i in obj) if (obj[i].toUpperCase() == 'ASC' || obj[i].toUpperCase() == 'DESC') x.push(`${i} ${obj[i]}`);
 
-    if (x.length) return `ORDER BY ${  x.join(', ')}`;
+    if (x.length) return `ORDER BY ${x.join(', ')}`;
     else return '';
 };
 
@@ -71,18 +71,18 @@ Model.prototype.where = function (obj) {
     var x = [];
 
     for (var i in obj) {
-        if (typeof obj[i] == 'object') x.push(` ${  obj[i].column  } = ${  self.escape(obj[i].value)}`);
-        else x.push(`(${  obj[i]  })`);
+        if (typeof obj[i] == 'object') x.push(` ${obj[i].column} = ${self.escape(obj[i].value)}`);
+        else x.push(`(${obj[i]})`);
     }
 
-    if (x.length) return `WHERE ${  x.join(' AND ')}`;
+    if (x.length) return `WHERE ${x.join(' AND ')}`;
     else return '';
 };
 
 Model.prototype.paginate = function (page, nb) {
     var self = this;
     var p = page || 0;
-    return `LIMIT ${  p * nb  }, ${  nb}`;
+    return `LIMIT ${p * nb}, ${nb}`;
 };
 
 Model.prototype.query = function (sql, callback) {
@@ -191,7 +191,7 @@ Model.prototype.clean = function (entity, obj) {
                 obj[property] = validators[self.schema[entity].columns[property].type](obj[property]);
             else {
                 var type = self.schema[entity].columns[property].type;
-                var err = new AppError('Error', `unknown type ${  type  } for cleaning`, {
+                var err = new AppError('Error', `unknown type ${type} for cleaning`, {
                     entity,
                     property,
                     type,
@@ -250,9 +250,9 @@ Model.prototype.insertMulti = function (entity, objs, callback) {
             else values.push(self.escape(''));
         }
 
-        s.push(` (${  values.join(',')  })`);
+        s.push(` (${values.join(',')})`);
     }
-    var sql = `insert into ${  entity  } (${  columns.join(',')  }) values ${  s.join(',')}`;
+    var sql = `insert into ${entity} (${columns.join(',')}) values ${s.join(',')}`;
 
     self.query(sql, callback);
 };
@@ -274,7 +274,7 @@ Model.prototype.insertSql = function (entity, obj, ignore) {
     var addInsert = '';
     if (self.schema[entity].columns['updatedAt'] && typeof obj.updatedAt == 'undefined') addInsert += ', updatedAt = now()';
     if (self.schema[entity].columns['createdAt'] && typeof obj.createdAt == 'undefined') addInsert += ', createdAt = now()';
-    return `insert ${  ignore ? 'ignore' : ''  } into \`${  entity  }\` set ${  self.object2sql(obj)  } ${  addInsert}`;
+    return `insert ${ignore ? 'ignore' : ''} into \`${entity}\` set ${self.object2sql(obj)} ${addInsert}`;
 };
 
 Model.prototype.update = function (entity, obj, callback) {
@@ -291,7 +291,7 @@ Model.prototype.updateSql = function (entity, obj, upsert) {
     var self = this;
 
     if (upsert) {
-        var tmp = `UPDATE ${  self.object2sql(obj)}`;
+        var tmp = `UPDATE ${self.object2sql(obj)}`;
         if (self.schema[entity].columns['updatedAt']) tmp += ', updatedAt = now()';
         return tmp;
     }
@@ -302,12 +302,11 @@ Model.prototype.updateSql = function (entity, obj, upsert) {
     addUpdate += ' WHERE ';
 
     var updates = [];
-    for (var property in obj)
-        if (self.schema[entity].columns[property].primary) updates.push(` \`${  property  }\` = ${  self.escape(obj[property])  } `);
+    for (var property in obj) if (self.schema[entity].columns[property].primary) updates.push(` \`${property}\` = ${self.escape(obj[property])} `);
 
     addUpdate += updates.join(' AND ');
 
-    return `UPDATE \`${  entity  }\` SET ${  self.object2sql(obj)  } ${  addUpdate}`;
+    return `UPDATE \`${entity}\` SET ${self.object2sql(obj)} ${addUpdate}`;
 };
 
 Model.prototype.insertOrUpdate = function (entity, obj, callback) {
@@ -315,7 +314,7 @@ Model.prototype.insertOrUpdate = function (entity, obj, callback) {
     obj = self.clean(entity, obj);
     var sqlInsert = self.insertSql(entity, obj);
     var sqlUpdate = self.updateSql(entity, obj, 1);
-    var sql = `${sqlInsert  } ON DUPLICATE KEY ${  sqlUpdate}`;
+    var sql = `${sqlInsert} ON DUPLICATE KEY ${sqlUpdate}`;
     self.query(sql, function (err, result) {
         if (err) return callback(err);
 
@@ -327,7 +326,7 @@ Model.prototype.insertOrUpdate = function (entity, obj, callback) {
 
 Model.prototype.delete = function (entity, id, callback) {
     var self = this;
-    self.query(`DELETE FROM \`${  entity  }\` WHERE id = ${  self.escape(id)}`, callback);
+    self.query(`DELETE FROM \`${entity}\` WHERE id = ${self.escape(id)}`, callback);
 };
 
 var validators = {
@@ -359,7 +358,7 @@ var validators = {
         else return parseFloat(value);
     },
     varchar: function (value) {
-        return value == null ? null : `${value  }`;
+        return value == null ? null : `${value}`;
     },
     tinyint: function (value) {
         if (value == null) return null;
@@ -388,13 +387,13 @@ var validators = {
 
         if (typeof value == 'string' && value.match(/(\d{2}):(\d{2}):(\d{4})/)) return value;
         else if (typeof value == 'string' && value.match(/(\d{2}):(\d{2})/)) return value;
-        else if (typeof value == 'string' && value.match(/(\d{2})/)) return `${value.replace(/:$/gm, '')  }:00`;
+        else if (typeof value == 'string' && value.match(/(\d{2})/)) return `${value.replace(/:$/gm, '')}:00`;
         else return null;
     },
     trim: function (value) {
         if (value == null) return null;
 
-        return (`${value  }`).trim();
+        return `${value}`.trim();
     },
 };
 validators.text = validators.varchar;

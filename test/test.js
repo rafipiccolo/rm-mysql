@@ -51,16 +51,13 @@ describe('model.js', function () {
         });
     });
     it('query with order where and limit', function (done) {
-        model.query(
-            `select ${  model.escape(2)  } ${  model.orderBy({})  } ${  model.where([])  } ${  model.paginate(0, 1)}`,
-            function (err, results) {
-                assert.ifError(err);
-                assert.equal(results.length, 1);
-                assert.equal(Object.keys(results[0]).length, 1);
-                assert.equal(Object.keys(results[0]).length, 1);
-                done();
-            }
-        );
+        model.query(`select ${model.escape(2)} ${model.orderBy({})} ${model.where([])} ${model.paginate(0, 1)}`, function (err, results) {
+            assert.ifError(err);
+            assert.equal(results.length, 1);
+            assert.equal(Object.keys(results[0]).length, 1);
+            assert.equal(Object.keys(results[0]).length, 1);
+            done();
+        });
     });
     it('insertMulti', function (done) {
         model.insertMulti('user', [{ name: 'toto' }, { name: 'solo' }, { name: 'lolo' }], function (err, results) {
