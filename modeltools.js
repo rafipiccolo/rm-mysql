@@ -1,17 +1,19 @@
 'use strict';
 
-var async = require('async');
 var mysql = require('mysql');
 var crypto = require('crypto');
 
 var config = require('./config.js');
-var connection = mysql.createConnection({
-    host: config.mysql.host,
-    user: config.mysql.user,
-    password: config.mysql.password,
-    charset: config.mysql.charset || 'utf8mb4',
-    multipleStatements: true,
-});
+var m = process.env.MYSQL.match(/mysql:\/\/([a-z0-9\.\-]+):(.+)@([a-z0-9\.\-]+)\/([a-z0-9]+)\?.*/i);
+if (!m) throw new Error(`can't split mysql url`);
+config.mysql = {
+    user: m[1],
+    host: m[2],
+    password: m[3],
+    database: m[4],
+};
+var connection = mysql.createConnection(`${process.env.MYSQL}&multipleStatements=true`);
+
 const readline = require('readline');
 const rl = readline.createInterface({
     input: process.stdin,
@@ -51,6 +53,10 @@ require('yargs')
                 .option('d', {
                     alias: 'dump',
                     describe: 'do not execute : only print sql',
+                })
+                .option('v', {
+                    alias: 'verbose',
+                    describe: 'show diff for debugging',
                 });
         },
         update
@@ -591,6 +597,12 @@ function objToString(obj) {
 function diffObject(obj1, obj2) {
     var s1 = objToString(obj1);
     var s2 = objToString(obj2);
+
+    if (process.env.VERBOSE && s1 != s2) {
+        console.log('DIFFFFF');
+        console.log(s1);
+        console.log(s2);
+    }
 
     return s1 != s2;
 }

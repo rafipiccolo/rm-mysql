@@ -36,11 +36,6 @@ Model.prototype.start = function (config) {
                     self.start(config);
                 }, 1000);
             }
-
-            if (config.charset)
-                self.connection.query(`SET NAMES ${self.escape(config.charset)}`, function (err) {
-                    if (err) throw err;
-                });
         });
         self.connection.on('error', function (err) {
             if (err.fatal) self.start(config);
