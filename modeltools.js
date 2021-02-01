@@ -3,7 +3,7 @@
 var mysql = require('mysql');
 var crypto = require('crypto');
 
-var config = require('./config.js');
+var config = {}
 var m = process.env.MYSQL.match(/mysql:\/\/([a-z0-9\.\-]+):(.+)@([a-z0-9\.\-]+)\/([a-z0-9]+)\?.*/i);
 if (!m) throw new Error(`can't split mysql url`);
 config.mysql = {
@@ -123,10 +123,7 @@ require('yargs')
         exec
     ).argv;
 
-if (!config.modeldata) {
-    console.log('    specify a modeldata file in config file');
-    exit();
-}
+const modeldatafile = `${__dirname}/modeldata.js`;
 
 function exit(err) {
     if (err) throw err;
@@ -149,7 +146,7 @@ function exec(argv) {
 }
 
 function password(argv) {
-    console.log(crypto.createHmac('sha256', config.secret).update(`${argv.password}`).digest('hex'));
+    console.log(crypto.createHmac('sha256', process.env.SECRET).update(`${argv.password}`).digest('hex'));
     exit();
 }
 
@@ -223,7 +220,7 @@ function generate(argv) {
             }
             s += '}\n';
 
-            require('fs').writeFile(config.modeldata, `module.exports = ${s}`, function (err) {
+            require('fs').writeFile(modeldatafile, `module.exports = ${s}`, function (err) {
                 exit(err);
             });
         });
@@ -237,7 +234,7 @@ function update(argv) {
         getModelFromDatabase(function (err, database) {
             if (err) return exit(err);
 
-            var modeldata = require(config.modeldata);
+            var modeldata = require(modeldatafile);
             var toexecute = [];
             var toexecutelast = [];
 
