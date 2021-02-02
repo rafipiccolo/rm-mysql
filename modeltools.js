@@ -3,7 +3,7 @@
 var mysql = require('mysql');
 var crypto = require('crypto');
 
-var config = {}
+var config = {};
 var m = process.env.MYSQL.match(/mysql:\/\/([a-z0-9\.\-]+):(.+)@([a-z0-9\.\-]+)\/([a-z0-9]+)\?.*/i);
 if (!m) throw new Error(`can't split mysql url`);
 config.mysql = {
