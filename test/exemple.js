@@ -1,3 +1,5 @@
+'use strict';
+
 var config = require('./config.js');
 var Model = require('../index.js');
 var model = new Model(config);
