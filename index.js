@@ -156,7 +156,7 @@ Model.prototype.escapeIds = function (ids) {
     var self = this;
 
     var res = [];
-    ids.split(',').map(function (id) {
+    ids.split(',').forEach(function (id) {
         if (id != '') res.push(parseFloat(id));
     });
 
