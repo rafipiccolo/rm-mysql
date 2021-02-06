@@ -2,15 +2,90 @@
 
 var moment = require('moment');
 var mysql = require('mysql');
-var AppError = require('./lib/AppError.js');
-var pkg = require('./package.json');
+var AppError = require('../error');
 
 function Model(config) {
     var self = this;
 
+    if (!config) return;
+
     self.logger = config.logger;
-    self.schema = config.schema;
-    self.start(config.mysql);
+    self.modeldatafile = config.modeldata;
+
+    self.validators = {
+        clean: function (value) {
+            return typeof value === 'undefined' || (typeof value === 'number' && isNaN(value)) ? null : value;
+        },
+        nullable: function (value) {
+            return value === '' ? null : value;
+        },
+        nonNullable: function (value) {
+            return value === null ? '' : value;
+        },
+        int: function (value) {
+            if (value === null) return null;
+
+            if (value === '') return 0;
+            return parseInt(value);
+        },
+        float: function (value) {
+            if (value === null) return null;
+
+            if (value === '') return 0;
+            return parseFloat(value);
+        },
+        double: function (value) {
+            if (value === null) return null;
+
+            if (value === '') return 0;
+            return parseFloat(value);
+        },
+        varchar: function (value) {
+            return value === null ? null : `${value}`;
+        },
+        tinyint: function (value) {
+            if (value === null) return null;
+
+            if (value === true || value === false) return value;
+            return parseInt(value) ? true : false;
+        },
+        date: function (value) {
+            if (value === null || value === '') return null;
+
+            if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
+            if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
+            return moment(value).format('YYYY-MM-DD');
+        },
+        datetime: function (value) {
+            if (value === null || value === '') return null;
+
+            if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
+            if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
+            return moment(value).format('YYYY-MM-DD HH:mm:ss');
+        },
+        time: function (value) {
+            if (value === null) return null;
+
+            if (typeof value == 'string') value = value.replace(/h|H/, ':');
+
+            if (typeof value == 'string' && value.match(/(\d{2}):(\d{2}):(\d{4})/)) return value;
+            else if (typeof value == 'string' && value.match(/(\d{2}):(\d{2})/)) return value;
+            else if (typeof value == 'string' && value.match(/(\d{2})/)) return `${value.replace(/:$/gm, '')}:00`;
+            return null;
+        },
+        trim: function (value) {
+            if (value === null) return null;
+
+            return `${value}`.trim();
+        },
+    };
+    self.validators.text = self.validators.varchar;
+    self.validators.longtext = self.validators.varchar;
+    self.validators.bigint = self.validators.int;
+    self.modeldata = null;
+    if (self.modeldatafile) self.modeldata = require('../saferequire')(self.modeldatafile);
+
+    self.start(config);
 }
 
 Model.prototype.end = function (callback) {
@@ -24,21 +99,35 @@ Model.prototype.end = function (callback) {
 Model.prototype.start = function (config) {
     var self = this;
 
-    if (config.connectionLimit) {
-        self.pool = mysql.createPool(config);
+    if (config.mysql.connectionLimit) {
+        self.pool = mysql.createPool(config.mysql);
+        // self.pool.on('acquire', function (connection) {
+        //     console.info('Connection %d acquired', connection.threadId);
+        // });
+        // self.pool.on('connection', function (connection) {
+        //     console.info('Connection started', connection.threadId);
+        // });
+        // self.pool.on('enqueue', function () {
+        //     console.info('Waiting for available connection slot');
+        // });
+        // self.pool.on('release', function (connection) {
+        //     console.info('Connection %d released', connection.threadId);
+        // });
     } else {
-        self.connection = mysql.createConnection(config);
+        self.connection = mysql.createConnection(config.mysql);
         self.connection.connect(function (err) {
             if (err) {
-                if (self.logger) self.logger.error(pkg.name, 'cannot connect to mysql server', { err });
-
+                self.logger.info('fk:model', err.message, { err });
                 return setTimeout(function () {
                     self.start(config);
                 }, 1000);
             }
         });
         self.connection.on('error', function (err) {
-            if (err.fatal) self.start(config);
+            self.logger.info('fk:model', err.message, { err });
+            setTimeout(function () {
+                if (err.fatal) self.start(config);
+            }, 1000);
         });
     }
 };
@@ -58,7 +147,7 @@ Model.prototype.orderBy = function (obj) {
     for (var i in obj) if (obj[i].toUpperCase() == 'ASC' || obj[i].toUpperCase() == 'DESC') x.push(`${i} ${obj[i]}`);
 
     if (x.length) return `ORDER BY ${x.join(', ')}`;
-    else return '';
+    return '';
 };
 
 Model.prototype.where = function (obj) {
@@ -71,7 +160,7 @@ Model.prototype.where = function (obj) {
     }
 
     if (x.length) return `WHERE ${x.join(' AND ')}`;
-    else return '';
+    return '';
 };
 
 Model.prototype.paginate = function (page, nb) {
@@ -94,7 +183,7 @@ Model.prototype.queryOne = function (sql, callback) {
     var self = this;
     self.query(sql, function (err, results, fields) {
         if (err) return callback(err);
-        if (results.length == 0) return callback(new AppError('NORESULT', 'Aucun résultat', { sql }));
+        if (results.length == 0) return callback(new AppError('NORESULT', 'Aucun résultat', { sql, status: 404 }));
 
         var res = results[0];
 
@@ -125,16 +214,18 @@ Model.prototype.queryFields = function (sql, callback) {
             connection.query(sql, function (err, rows, fields) {
                 connection.release();
 
-                if (err) return callback(new AppError('Error', "Can't execute sql request from pool", { sql, err }));
+                if (err) return callback(new AppError('Error', 'Erreur sql dans model.query() from pool', { sql, err, status: 500 }));
 
                 callback(null, rows, fields);
             });
         });
     } else {
         self.connection.query(sql, function (err, results, fields) {
-            if (self.logger) self.logger.info(pkg.name, typeof sql == 'string' ? sql : sql.sql);
+            if (err && err.fatal) throw 'MYSQL FATAL RESTART';
 
-            if (err) return callback(new AppError('Error', "Can't execute sql request", { sql, err }));
+            self.logger.info('fk:model', typeof sql == 'string' ? sql : sql.sql);
+
+            if (err) return callback(new AppError('Error', 'Erreur sql dans model.query()', { sql, err, status: 500 }));
 
             callback(null, results, fields);
         });
@@ -166,10 +257,10 @@ Model.prototype.escapeIds = function (ids) {
 Model.prototype.clean = function (entity, obj) {
     var self = this;
     obj = obj || {};
-    obj = JSON.parse(JSON.stringify(obj));
+    var res = {};
 
     for (var property in obj) {
-        if (self.schema[entity] && self.schema[entity].columns[property]) {
+        if (self.modeldata[entity] && self.modeldata[entity].columns[property]) {
             // supprime les champs undefined
             if (typeof obj[property] == 'undefined') {
                 delete obj[property];
@@ -177,39 +268,41 @@ Model.prototype.clean = function (entity, obj) {
             }
 
             // copie la valeur
-            obj[property] = validators['clean'](obj[property]);
+            res[property] = self.validators['clean'](obj[property]);
 
             // nettoie la valeur via chaque validateur
-            if (self.schema[entity].columns[property].nullable) obj[property] = validators['nullable'](obj[property]);
-            else obj[property] = validators['nonNullable'](obj[property]);
-            if (validators[self.schema[entity].columns[property].type])
-                obj[property] = validators[self.schema[entity].columns[property].type](obj[property]);
+            if (self.modeldata[entity].columns[property].nullable) res[property] = self.validators['nullable'](obj[property]);
+            else res[property] = self.validators['nonNullable'](obj[property]);
+            if (self.validators[self.modeldata[entity].columns[property].type])
+                res[property] = self.validators[self.modeldata[entity].columns[property].type](res[property]);
             else {
-                var type = self.schema[entity].columns[property].type;
-                var err = new AppError('Error', `unknown type ${type} for cleaning`, {
+                var details = {
                     entity,
                     property,
-                    type,
+                    type: self.modeldata[entity].columns[property].type,
+                };
+                var err = new AppError('Error', `type non nettoyable ${self.modeldata[entity].columns[property].type}`, { details, status: 500 });
+                self.logger.error('fk:model', err.message, { err }, function () {
+                    throw err;
                 });
-                throw err;
             }
 
             // vérifie si maxlength est renseigné
-            if (self.schema[entity].columns[property].maxlength && obj[property])
-                obj[property] = obj[property].substr(0, self.schema[entity].columns[property].maxlength);
+            if (self.modeldata[entity].columns[property].maxlength && res[property])
+                res[property] = res[property].substr(0, self.modeldata[entity].columns[property].maxlength);
         } else {
-            // if (self.logger) self.logger.info(pkg.name, 'champs inutilisé ' + property);
+            // self.logger.info('fk:model', 'champs inutilisé ' + property);
         }
     }
 
-    return obj;
+    return res;
 };
 
 Model.prototype.setDefault = function (entity, obj) {
     var self = this;
-    for (var column in self.schema[entity].columns)
-        if (self.schema[entity].columns[column].default && (obj[column] == null || typeof obj[column] == 'undefined'))
-            obj[column] = self.schema[entity].columns[column].default;
+    for (var column in self.modeldata[entity].columns)
+        if (self.modeldata[entity].columns[column].default && (obj[column] === null || typeof obj[column] == 'undefined'))
+            obj[column] = self.modeldata[entity].columns[column].default;
 };
 
 Model.prototype.insert = function (entity, obj, callback) {
@@ -229,7 +322,7 @@ Model.prototype.insertMulti = function (entity, objs, callback) {
     var self = this;
 
     var columns = [];
-    for (var property in self.schema[entity].columns) columns.push(property);
+    for (var property in self.modeldata[entity].columns) columns.push(property);
 
     var s = [];
 
@@ -237,11 +330,11 @@ Model.prototype.insertMulti = function (entity, objs, callback) {
         var values = [];
         var obj = objs[i];
 
-        for (var property in self.schema[entity].columns) {
-            if (typeof obj[property] !== 'undefined' && obj[property] !== null) values.push(self.escape(obj[property]));
+        for (var property in self.modeldata[entity].columns) {
+            if (obj[property]) values.push(self.escape(obj[property]));
             else if (property == 'createdAt' || property == 'updatedAt') values.push('NOW()');
-            else if (self.schema[entity].columns[property].default) values.push(self.escape(self.schema[entity].columns[property].default));
-            else if (self.schema[entity].columns[property].nullable || self.schema[entity].columns[property].primary) values.push('NULL');
+            else if (self.modeldata[entity].columns[property].default) values.push(self.escape(self.modeldata[entity].columns[property].default));
+            else if (self.modeldata[entity].columns[property].nullable || self.modeldata[entity].columns[property].primary) values.push('NULL');
             else values.push(self.escape(''));
         }
 
@@ -266,10 +359,13 @@ Model.prototype.insertIgnore = function (entity, obj, callback) {
 };
 Model.prototype.insertSql = function (entity, obj, ignore) {
     var self = this;
-    var addInsert = '';
-    if (self.schema[entity].columns['updatedAt'] && typeof obj.updatedAt == 'undefined') addInsert += ', updatedAt = now()';
-    if (self.schema[entity].columns['createdAt'] && typeof obj.createdAt == 'undefined') addInsert += ', createdAt = now()';
-    return `insert ${ignore ? 'ignore' : ''} into \`${entity}\` set ${self.object2sql(obj)} ${addInsert}`;
+    var addInsert = [];
+    if (self.modeldata[entity].columns['updatedAt'] && typeof obj.updatedAt == 'undefined') addInsert.push('updatedAt = now()');
+    if (self.modeldata[entity].columns['createdAt'] && typeof obj.createdAt == 'undefined') addInsert.push('createdAt = now()');
+
+    if (Object.keys(obj).length) addInsert.push(self.object2sql(obj));
+
+    return `insert ${ignore ? 'ignore' : ''} into \`${entity}\` set ${addInsert.join(',')}`;
 };
 
 Model.prototype.update = function (entity, obj, callback) {
@@ -287,17 +383,17 @@ Model.prototype.updateSql = function (entity, obj, upsert) {
 
     if (upsert) {
         var tmp = `UPDATE ${self.object2sql(obj)}`;
-        if (self.schema[entity].columns['updatedAt']) tmp += ', updatedAt = now()';
+        if (self.modeldata[entity].columns['updatedAt']) tmp += ', updatedAt = now()';
         return tmp;
     }
 
     var addUpdate = '';
-    if (self.schema[entity].columns['updatedAt']) addUpdate += ', updatedAt = now()';
+    if (self.modeldata[entity].columns['updatedAt']) addUpdate += ', updatedAt = now()';
 
     addUpdate += ' WHERE ';
 
     var updates = [];
-    for (var property in obj) if (self.schema[entity].columns[property].primary) updates.push(` \`${property}\` = ${self.escape(obj[property])} `);
+    for (var property in obj) if (self.modeldata[entity].columns[property].primary) updates.push(` \`${property}\` = ${self.escape(obj[property])} `);
 
     addUpdate += updates.join(' AND ');
 
@@ -324,75 +420,96 @@ Model.prototype.delete = function (entity, id, callback) {
     self.query(`DELETE FROM \`${entity}\` WHERE id = ${self.escape(id)}`, callback);
 };
 
-var validators = {
-    clean: function (value) {
-        return typeof value === 'undefined' || (typeof value === 'number' && isNaN(value)) ? null : value;
-    },
-    nullable: function (value) {
-        return value === '' ? null : value;
-    },
-    nonNullable: function (value) {
-        return value === null ? '' : value;
-    },
-    int: function (value) {
-        if (value == null) return null;
+// PROMISES
 
-        if (value === '') return 0;
-        else return parseInt(value);
-    },
-    float: function (value) {
-        if (value == null) return null;
+Model.prototype.queryNestPromise = function (s) {
+    return new Promise((resolve, reject) => {
+        this.queryNest(s, function (err, data) {
+            if (err) return reject(err);
 
-        if (value === '') return 0;
-        else return parseFloat(value);
-    },
-    double: function (value) {
-        if (value == null) return null;
-
-        if (value === '') return 0;
-        else return parseFloat(value);
-    },
-    varchar: function (value) {
-        return value == null ? null : `${value}`;
-    },
-    tinyint: function (value) {
-        if (value == null) return null;
-
-        if (value === true || value === false) return value;
-        else return parseInt(value) ? true : false;
-    },
-    date: function (value) {
-        if (value == null || value == '') return null;
-
-        if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
-        if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
-        return moment(value).format('YYYY-MM-DD');
-    },
-    datetime: function (value) {
-        if (value == null || value == '') return null;
-
-        if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
-        if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
-        return moment(value).format('YYYY-MM-DD HH:mm:ss');
-    },
-    time: function (value) {
-        if (value == null) return null;
-
-        if (typeof value == 'string') value = value.replace(/h|H/, ':');
-
-        if (typeof value == 'string' && value.match(/(\d{2}):(\d{2}):(\d{4})/)) return value;
-        else if (typeof value == 'string' && value.match(/(\d{2}):(\d{2})/)) return value;
-        else if (typeof value == 'string' && value.match(/(\d{2})/)) return `${value.replace(/:$/gm, '')}:00`;
-        else return null;
-    },
-    trim: function (value) {
-        if (value == null) return null;
-
-        return `${value}`.trim();
-    },
+            resolve(data);
+        });
+    });
 };
-validators.text = validators.varchar;
-validators.longtext = validators.varchar;
-validators.bigint = validators.int;
+
+Model.prototype.queryOnePromise = function (s) {
+    return new Promise((resolve, reject) => {
+        this.queryOne(s, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.queryPromise = function (s) {
+    return new Promise((resolve, reject) => {
+        this.query(s, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.deletePromise = function (s, d) {
+    return new Promise((resolve, reject) => {
+        this.delete(s, d, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.queryNbPromise = function (s) {
+    return new Promise((resolve, reject) => {
+        this.queryNb(s, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.updatePromise = function (s, d) {
+    return new Promise((resolve, reject) => {
+        this.update(s, d, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.insertPromise = function (s, d) {
+    return new Promise((resolve, reject) => {
+        this.insert(s, d, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.insertIgnorePromise = function (s, d) {
+    return new Promise((resolve, reject) => {
+        this.insertIgnore(s, d, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
+
+Model.prototype.insertOrUpdatePromise = function (s, d) {
+    return new Promise((resolve, reject) => {
+        this.insertOrUpdate(s, d, function (err, data) {
+            if (err) return reject(err);
+
+            resolve(data);
+        });
+    });
+};
 
 module.exports = Model;
