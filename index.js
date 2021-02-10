@@ -20,51 +20,51 @@ function Model(config) {
             return value === '' ? null : value;
         },
         nonNullable: function (value) {
-            return value === null ? '' : value;
+            return value === null || typeof value == 'undefined' ? '' : value;
         },
         int: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             if (value === '') return 0;
             return parseInt(value);
         },
         float: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             if (value === '') return 0;
             return parseFloat(value);
         },
         double: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             if (value === '') return 0;
             return parseFloat(value);
         },
         varchar: function (value) {
-            return value === null ? null : `${value}`;
+            return value === null || typeof value == 'undefined' ? null : `${value}`;
         },
         tinyint: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             if (value === true || value === false) return value;
             return parseInt(value) ? true : false;
         },
         date: function (value) {
-            if (value === null || value === '') return null;
+            if (value === null || typeof value == 'undefined' || value === '') return null;
 
             if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
             if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
             return moment(value).format('YYYY-MM-DD');
         },
         datetime: function (value) {
-            if (value === null || value === '') return null;
+            if (value === null || typeof value == 'undefined' || value === '') return null;
 
             if (typeof value == 'string') value = value.replace(/(\d{2})-(\d{2})-(\d{4})/, '$3-$2-$1');
             if (typeof value == 'string') value = value.replace(/(\d{2})\/(\d{2})\/(\d{4})/, '$3-$2-$1');
             return moment(value).format('YYYY-MM-DD HH:mm:ss');
         },
         time: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             if (typeof value == 'string') value = value.replace(/h|H/, ':');
 
@@ -74,7 +74,7 @@ function Model(config) {
             return null;
         },
         trim: function (value) {
-            if (value === null) return null;
+            if (value === null || typeof value == 'undefined') return null;
 
             return `${value}`.trim();
         },
